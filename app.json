@@ -38,6 +38,17 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "50b67328-bf25-41e6-8b54-774692d104f6"
+      }
+    },
+    "owner": "dasun03s-team"
   }
 }
