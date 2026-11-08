@@ -12,11 +12,13 @@ import { StatusBar } from 'expo-status-bar';
 import { JudiciaLogo } from '@/components/common/JudiciaLogo';
 import { JudiciaColors } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
-import { Briefcase, User as UserIcon, Moon, ArrowRight } from 'lucide-react-native';
+import { useTheme } from '@/context/ThemeContext';
+import { Briefcase, User as UserIcon, Moon, Sun, ArrowRight } from 'lucide-react-native';
 
 export default function WelcomePortalScreen() {
     const router = useRouter();
     const { selectedPortalRole, setSelectedPortalRole } = useAuth();
+    const { isDark, toggleTheme } = useTheme();
 
     const handleContinue = () => {
         router.push({
@@ -27,15 +29,34 @@ export default function WelcomePortalScreen() {
 
     const isLawyer = selectedPortalRole === 'lawyer';
 
+    // Dynamic Theme Colors
+    const bgColor = isDark ? '#101110' : JudiciaColors.creamBg;
+    const cardBg = isDark ? '#191B19' : '#FFFFFF';
+    const cardBorder = isDark ? 'rgba(255, 255, 255, 0.08)' : '#EFECE6';
+    const textPrimary = isDark ? '#FFFFFF' : JudiciaColors.textDark;
+    const textSecondary = isDark ? '#9A9E9A' : JudiciaColors.textMuted;
+    const buttonBg = isDark ? JudiciaColors.goldPrimary : JudiciaColors.buttonDark;
+    const buttonTextColor = isDark ? '#111211' : '#FFFFFF';
+    const toggleBtnBg = isDark ? '#1F211F' : '#F2EFEB';
+    const toggleBtnBorder = isDark ? 'rgba(255, 255, 255, 0.15)' : '#E6E1D8';
+
     return (
-        <SafeAreaView style={styles.container}>
-            <StatusBar style="dark" />
+        <SafeAreaView style={[styles.container, { backgroundColor: bgColor }]}>
+            <StatusBar style={isDark ? 'light' : 'dark'} />
 
             {/* Top Header: Judicia Logo + Theme Toggle */}
             <View style={styles.header}>
-                <JudiciaLogo variant="header" />
-                <TouchableOpacity style={styles.themeToggle} activeOpacity={0.7}>
-                    <Moon size={16} color={JudiciaColors.textDark} />
+                <JudiciaLogo variant="header" textColor={textPrimary} />
+                <TouchableOpacity
+                    style={[styles.themeToggle, { backgroundColor: toggleBtnBg, borderColor: toggleBtnBorder }]}
+                    activeOpacity={0.7}
+                    onPress={toggleTheme}
+                >
+                    {isDark ? (
+                        <Sun size={16} color={JudiciaColors.goldPrimary} />
+                    ) : (
+                        <Moon size={16} color={JudiciaColors.textDark} />
+                    )}
                 </TouchableOpacity>
             </View>
 
@@ -43,18 +64,18 @@ export default function WelcomePortalScreen() {
                 {/* Hero Section */}
                 <View style={styles.heroSection}>
                     <Text style={styles.tagline}>LEGAL PRACTICE, CLEARLY MANAGED</Text>
-                    <Text style={styles.headline}>
+                    <Text style={[styles.headline, { color: textPrimary }]}>
                         Justice moves forward,{'\n'}one matter at a time.
                     </Text>
-                    <Text style={styles.subheadline}>
+                    <Text style={[styles.subheadline, { color: textSecondary }]}>
                         A calm, connected space for Sri Lankan legal professionals and their clients.
                     </Text>
                 </View>
 
                 {/* Selection Card Container */}
-                <View style={styles.selectionCard}>
-                    <Text style={styles.cardHeading}>Welcome to Judicia</Text>
-                    <Text style={styles.cardSubheading}>Choose how you'll use the app.</Text>
+                <View style={[styles.selectionCard, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+                    <Text style={[styles.cardHeading, { color: textPrimary }]}>Welcome to Judicia</Text>
+                    <Text style={[styles.cardSubheading, { color: textSecondary }]}>Choose how you'll use the app.</Text>
 
                     {/* Side-by-side Role Options */}
                     <View style={styles.rolesRow}>
@@ -62,49 +83,59 @@ export default function WelcomePortalScreen() {
                         <TouchableOpacity
                             style={[
                                 styles.roleOption,
-                                isLawyer && styles.roleOptionSelected,
+                                isDark ? styles.roleOptionDark : styles.roleOptionLight,
+                                isLawyer && (isDark ? styles.roleOptionSelectedDark : styles.roleOptionSelectedLight),
                             ]}
                             activeOpacity={0.8}
                             onPress={() => setSelectedPortalRole('lawyer')}
                         >
-                            <View style={[styles.iconCircle, isLawyer && styles.iconCircleSelected]}>
-                                <Briefcase size={18} color={isLawyer ? '#785923' : '#6B726C'} />
+                            <View style={[
+                                styles.iconCircle,
+                                isDark ? styles.iconCircleDark : styles.iconCircleLight,
+                                isLawyer && (isDark ? styles.iconCircleSelectedDark : styles.iconCircleSelectedLight),
+                            ]}>
+                                <Briefcase size={18} color={isLawyer ? (isDark ? JudiciaColors.goldPrimary : '#785923') : '#8A908A'} />
                             </View>
-                            <Text style={styles.roleTitle}>I'm a Lawyer</Text>
-                            <Text style={styles.roleDesc}>Manage cases, clients and hearings</Text>
+                            <Text style={[styles.roleTitle, { color: textPrimary }]}>I'm a Lawyer</Text>
+                            <Text style={[styles.roleDesc, { color: textSecondary }]}>Manage cases, clients and hearings</Text>
                         </TouchableOpacity>
 
                         {/* Client Option */}
                         <TouchableOpacity
                             style={[
                                 styles.roleOption,
-                                !isLawyer && styles.roleOptionSelected,
+                                isDark ? styles.roleOptionDark : styles.roleOptionLight,
+                                !isLawyer && (isDark ? styles.roleOptionSelectedDark : styles.roleOptionSelectedLight),
                             ]}
                             activeOpacity={0.8}
                             onPress={() => setSelectedPortalRole('client')}
                         >
-                            <View style={[styles.iconCircle, !isLawyer && styles.iconCircleSelected]}>
-                                <UserIcon size={18} color={!isLawyer ? '#785923' : '#6B726C'} />
+                            <View style={[
+                                styles.iconCircle,
+                                isDark ? styles.iconCircleDark : styles.iconCircleLight,
+                                !isLawyer && (isDark ? styles.iconCircleSelectedDark : styles.iconCircleSelectedLight),
+                            ]}>
+                                <UserIcon size={18} color={!isLawyer ? (isDark ? JudiciaColors.goldPrimary : '#785923') : '#8A908A'} />
                             </View>
-                            <Text style={styles.roleTitle}>I'm a Client</Text>
-                            <Text style={styles.roleDesc}>Follow my case and contact counsel</Text>
+                            <Text style={[styles.roleTitle, { color: textPrimary }]}>I'm a Client</Text>
+                            <Text style={[styles.roleDesc, { color: textSecondary }]}>Follow my case and contact counsel</Text>
                         </TouchableOpacity>
                     </View>
 
                     {/* Dynamic Action Button */}
                     <TouchableOpacity
-                        style={styles.continueButton}
+                        style={[styles.continueButton, { backgroundColor: buttonBg }]}
                         activeOpacity={0.85}
                         onPress={handleContinue}
                     >
-                        <Text style={styles.continueButtonText}>
+                        <Text style={[styles.continueButtonText, { color: buttonTextColor }]}>
                             Continue as {isLawyer ? 'Lawyer' : 'Client'}
                         </Text>
-                        <ArrowRight size={18} color="#FFFFFF" />
+                        <ArrowRight size={18} color={buttonTextColor} />
                     </TouchableOpacity>
 
                     {/* Footer Note inside card */}
-                    <Text style={styles.cardFooterNote}>
+                    <Text style={[styles.cardFooterNote, { color: textSecondary }]}>
                         New to Judicia? You can create your account on the next screen.
                     </Text>
                 </View>
@@ -112,7 +143,7 @@ export default function WelcomePortalScreen() {
 
             {/* Bottom Legal Disclaimer */}
             <View style={styles.footer}>
-                <Text style={styles.footerNote}>
+                <Text style={[styles.footerNote, { color: isDark ? '#6E736E' : '#8A918A' }]}>
                     Attorneys-at-Law registered with the BASL are verified before access is approved.
                 </Text>
             </View>
@@ -123,7 +154,6 @@ export default function WelcomePortalScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: JudiciaColors.creamBg,
     },
     header: {
         flexDirection: 'row',
@@ -137,11 +167,9 @@ const styles = StyleSheet.create({
         width: 36,
         height: 36,
         borderRadius: 18,
-        backgroundColor: '#F2EFEB',
         alignItems: 'center',
         justifyContent: 'center',
         borderWidth: 1,
-        borderColor: '#E6E1D8',
     },
     scrollContent: {
         paddingHorizontal: 24,
@@ -155,7 +183,7 @@ const styles = StyleSheet.create({
         fontSize: 10,
         fontWeight: '700',
         letterSpacing: 2,
-        color: JudiciaColors.goldMuted,
+        color: JudiciaColors.goldPrimary,
         textTransform: 'uppercase',
         marginBottom: 10,
     },
@@ -163,35 +191,29 @@ const styles = StyleSheet.create({
         fontSize: 30,
         lineHeight: 36,
         fontWeight: '700',
-        color: JudiciaColors.textDark,
         marginBottom: 10,
     },
     subheadline: {
         fontSize: 14,
         lineHeight: 20,
-        color: JudiciaColors.textMuted,
     },
     selectionCard: {
-        backgroundColor: '#FFFFFF',
         borderRadius: 16,
         padding: 22,
         shadowColor: '#000000',
         shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.08,
+        shadowOpacity: 0.15,
         shadowRadius: 16,
         elevation: 4,
         borderWidth: 1,
-        borderColor: '#EFECE6',
     },
     cardHeading: {
         fontSize: 20,
         fontWeight: '700',
-        color: JudiciaColors.textDark,
         marginBottom: 4,
     },
     cardSubheading: {
         fontSize: 13,
-        color: JudiciaColors.textMuted,
         marginBottom: 18,
     },
     rolesRow: {
@@ -201,41 +223,56 @@ const styles = StyleSheet.create({
     },
     roleOption: {
         flex: 1,
-        backgroundColor: '#FAF9F6',
         borderRadius: 12,
         padding: 14,
         borderWidth: 1.5,
+    },
+    roleOptionLight: {
+        backgroundColor: '#FAF9F6',
         borderColor: '#E8E4DC',
     },
-    roleOptionSelected: {
+    roleOptionDark: {
+        backgroundColor: '#141514',
+        borderColor: 'rgba(255, 255, 255, 0.08)',
+    },
+    roleOptionSelectedLight: {
         borderColor: JudiciaColors.goldPrimary,
         backgroundColor: '#FDFBF7',
+    },
+    roleOptionSelectedDark: {
+        borderColor: JudiciaColors.goldPrimary,
+        backgroundColor: '#201E17',
     },
     iconCircle: {
         width: 34,
         height: 34,
         borderRadius: 17,
-        backgroundColor: '#EBE7DE',
         alignItems: 'center',
         justifyContent: 'center',
         marginBottom: 12,
     },
-    iconCircleSelected: {
+    iconCircleLight: {
+        backgroundColor: '#EBE7DE',
+    },
+    iconCircleDark: {
+        backgroundColor: '#232523',
+    },
+    iconCircleSelectedLight: {
         backgroundColor: '#F3E5C8',
+    },
+    iconCircleSelectedDark: {
+        backgroundColor: '#352E1D',
     },
     roleTitle: {
         fontSize: 14,
         fontWeight: '700',
-        color: JudiciaColors.textDark,
         marginBottom: 4,
     },
     roleDesc: {
         fontSize: 11,
         lineHeight: 15,
-        color: JudiciaColors.textMuted,
     },
     continueButton: {
-        backgroundColor: JudiciaColors.buttonDark,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
@@ -245,14 +282,12 @@ const styles = StyleSheet.create({
     },
     continueButtonText: {
         fontSize: 15,
-        fontWeight: '600',
-        color: '#FFFFFF',
+        fontWeight: '700',
     },
     cardFooterNote: {
         marginTop: 14,
         fontSize: 11,
         textAlign: 'center',
-        color: JudiciaColors.textMuted,
     },
     footer: {
         paddingHorizontal: 24,
@@ -262,7 +297,6 @@ const styles = StyleSheet.create({
     footerNote: {
         fontSize: 11,
         textAlign: 'center',
-        color: '#8A918A',
         lineHeight: 16,
     },
 });

@@ -7,12 +7,14 @@ interface JudiciaLogoProps {
     variant?: 'splash' | 'header' | 'icon-only';
     size?: number;
     showTagline?: boolean;
+    textColor?: string;
 }
 
 export const JudiciaLogo: React.FC<JudiciaLogoProps> = ({
     variant = 'splash',
     size = 140,
     showTagline = true,
+    textColor,
 }) => {
     if (variant === 'header') {
         // Compact logo for top bar of Onboarding screens
