@@ -59,12 +59,12 @@ export default function OnboardingScreen() {
             setActiveIndex(activeIndex + 1);
         } else {
             // Finished onboarding -> Hand off to auth flow
-            router.push('/(auth)/login' as any);
+            router.push('/(auth)' as any);
         }
     };
 
     const handleSkip = () => {
-        router.push('/(auth)/login' as any);
+        router.push('/(auth)' as any);
     };
 
     const onScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
