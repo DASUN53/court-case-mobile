@@ -31,6 +31,11 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
     (response) => response,
     (error) => {
+        if (__DEV__ && (!error.response || error.code === 'ERR_NETWORK')) {
+            console.warn(
+                `[API Network Error] Could not reach ${API_BASE_URL}. Check that Next.js backend is running on your PC ('npm run dev') and your phone is on the same Wi-Fi.`
+            );
+        }
         const message =
             error.response?.data?.error ||
             error.response?.data?.message ||
