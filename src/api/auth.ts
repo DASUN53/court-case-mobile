@@ -28,4 +28,9 @@ export const authApi = {
             // Continue even if server logout fails
         }
     },
+
+    checkHealth: async (): Promise<{ status: string; database: string }> => {
+        const response = await apiClient.get('/health');
+        return response.data;
+    },
 };
