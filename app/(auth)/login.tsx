@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View,
     Text,
@@ -9,12 +9,15 @@ import {
     ActivityIndicator,
     KeyboardAvoidingView,
     Platform,
+    Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import * as SecureStore from 'expo-secure-store';
 import { JudiciaLogo } from '@/components/common/JudiciaLogo';
 import { JudiciaColors } from '@/constants/theme';
+import { API_BASE_URL, STORAGE_KEYS, normalizeApiUrl } from '@/constants/config';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import {
@@ -26,6 +29,11 @@ import {
     Check,
     Sun,
     Moon,
+    Settings,
+    CheckCircle2,
+    AlertCircle,
+    X,
+    Wifi,
 } from 'lucide-react-native';
 
 export default function LawyerLoginScreen() {
@@ -40,6 +48,78 @@ export default function LawyerLoginScreen() {
     const [isLoading, setIsLoading] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+    // Dynamic Server API URL Configuration & Testing
+    const [apiUrl, setApiUrl] = useState(API_BASE_URL);
+    const [showConfigModal, setShowConfigModal] = useState(false);
+    const [inputUrl, setInputUrl] = useState(API_BASE_URL);
+    const [testStatus, setTestStatus] = useState<{
+        status: 'idle' | 'testing' | 'success' | 'error';
+        message: string;
+    }>({
+        status: 'idle',
+        message: '',
+    });
+
+    useEffect(() => {
+        SecureStore.getItemAsync(STORAGE_KEYS.CUSTOM_API_URL).then((saved) => {
+            if (saved && saved.trim().length > 0) {
+                setApiUrl(saved.trim());
+                setInputUrl(saved.trim());
+            }
+        });
+    }, []);
+
+    const handleTestConnection = async (targetOverride?: string) => {
+        const target = normalizeApiUrl(targetOverride || inputUrl);
+        setTestStatus({ status: 'testing', message: `Pinging ${target}...` });
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 4000);
+            const res = await fetch(`${target}/health`, {
+                signal: controller.signal,
+                headers: { Accept: 'application/json' },
+            });
+            clearTimeout(timeoutId);
+            if (res.ok) {
+                const data = await res.json();
+                setTestStatus({
+                    status: 'success',
+                    message: `Connected! PostgreSQL: ${data.database || 'connected'} (${data.responseTimeMs || '<50'}ms)`,
+                });
+            } else {
+                setTestStatus({
+                    status: 'error',
+                    message: `Server returned HTTP ${res.status}: ${res.statusText}`,
+                });
+            }
+        } catch (err: any) {
+            setTestStatus({
+                status: 'error',
+                message:
+                    err.name === 'AbortError'
+                        ? 'Timed out (4s). Cannot reach this IP/URL. Ensure Next.js is running.'
+                        : (err.message || 'Network unreachable'),
+            });
+        }
+    };
+
+    const handleSaveUrl = async (newUrlToSave: string) => {
+        const normalized = normalizeApiUrl(newUrlToSave);
+        await SecureStore.setItemAsync(STORAGE_KEYS.CUSTOM_API_URL, normalized);
+        setApiUrl(normalized);
+        setShowConfigModal(false);
+        setErrorMessage(null);
+    };
+
+    const handleResetUrl = async () => {
+        await SecureStore.deleteItemAsync(STORAGE_KEYS.CUSTOM_API_URL);
+        const def = 'http://172.20.10.2:3000/api';
+        setApiUrl(def);
+        setInputUrl(def);
+        setShowConfigModal(false);
+        setErrorMessage(null);
+    };
+
     const handleSignIn = async () => {
         if (!email.trim() || !password) {
             setErrorMessage('Please enter both your email address and password.');
@@ -50,12 +130,10 @@ export default function LawyerLoginScreen() {
         setIsLoading(true);
 
         try {
-            // Connects to Next.js POST /api/auth/login and verifies with PostgreSQL
             await login({
                 email: email.trim(),
                 password,
             });
-            // On success, AuthContext automatically routes the lawyer to /(lawyer)
         } catch (error: any) {
             setErrorMessage(error.message || 'Invalid email or password.');
         } finally {
@@ -120,6 +198,7 @@ export default function LawyerLoginScreen() {
                     {/* Error Banner */}
                     {errorMessage && (
                         <View style={styles.errorBox}>
+                            <AlertCircle size={16} color="#DC2626" style={{ marginTop: 2, marginRight: 8 }} />
                             <Text style={styles.errorText}>{errorMessage}</Text>
                         </View>
                     )}
@@ -134,11 +213,10 @@ export default function LawyerLoginScreen() {
                                     styles.input,
                                     { backgroundColor: inputBg, borderColor: cardBorder, color: textPrimary },
                                 ]}
-                                placeholder="name@example.com"
+                                placeholder="john@pereralaw.lk"
                                 placeholderTextColor={isDark ? '#6E736E' : '#A3A8A3'}
                                 autoCapitalize="none"
                                 keyboardType="email-address"
-                                autoCorrect={false}
                                 value={email}
                                 onChangeText={setEmail}
                             />
@@ -157,14 +235,12 @@ export default function LawyerLoginScreen() {
                                     placeholder="Enter your password"
                                     placeholderTextColor={isDark ? '#6E736E' : '#A3A8A3'}
                                     secureTextEntry={!showPassword}
-                                    autoCapitalize="none"
                                     value={password}
                                     onChangeText={setPassword}
                                 />
                                 <TouchableOpacity
                                     style={styles.eyeBtn}
                                     onPress={() => setShowPassword(!showPassword)}
-                                    activeOpacity={0.7}
                                 >
                                     {showPassword ? (
                                         <EyeOff size={18} color={textSecondary} />
@@ -175,42 +251,50 @@ export default function LawyerLoginScreen() {
                             </View>
                         </View>
 
-                        {/* Options Row */}
+                        {/* Remember Me & Forgot Password */}
                         <View style={styles.optionsRow}>
                             <TouchableOpacity
-                                style={styles.checkboxRow}
-                                activeOpacity={0.7}
+                                style={styles.rememberMe}
+                                activeOpacity={0.8}
                                 onPress={() => setKeepSignedIn(!keepSignedIn)}
                             >
                                 <View
                                     style={[
                                         styles.checkbox,
-                                        { borderColor: cardBorder },
-                                        keepSignedIn && styles.checkboxActive,
+                                        {
+                                            borderColor: keepSignedIn ? JudiciaColors.goldPrimary : textSecondary,
+                                            backgroundColor: keepSignedIn ? JudiciaColors.goldPrimary : 'transparent',
+                                        },
                                     ]}
                                 >
-                                    {keepSignedIn && <Check size={12} color="#FFFFFF" strokeWidth={3} />}
+                                    {keepSignedIn && <Check size={12} color="#14291F" strokeWidth={3} />}
                                 </View>
-                                <Text style={[styles.checkboxLabel, { color: textSecondary }]}>Keep me signed in</Text>
+                                <Text style={[styles.rememberText, { color: textPrimary }]}>Keep me signed in</Text>
                             </TouchableOpacity>
 
                             <TouchableOpacity activeOpacity={0.7}>
-                                <Text style={styles.forgotPassword}>Forgot password?</Text>
+                                <Text style={styles.forgotText}>Forgot password?</Text>
                             </TouchableOpacity>
                         </View>
 
                         {/* Sign In Button */}
                         <TouchableOpacity
-                            style={[styles.signInBtn, { backgroundColor: buttonBg }]}
+                            style={[
+                                styles.signInBtn,
+                                { backgroundColor: buttonBg },
+                                isLoading && { opacity: 0.7 },
+                            ]}
                             activeOpacity={0.85}
-                            onPress={handleSignIn}
                             disabled={isLoading}
+                            onPress={handleSignIn}
                         >
                             {isLoading ? (
-                                <ActivityIndicator color={buttonTextColor} />
+                                <ActivityIndicator size="small" color={buttonTextColor} />
                             ) : (
                                 <>
-                                    <Text style={[styles.signInBtnText, { color: buttonTextColor }]}>Sign in</Text>
+                                    <Text style={[styles.signInBtnText, { color: buttonTextColor }]}>
+                                        Sign in
+                                    </Text>
                                     <ArrowRight size={18} color={buttonTextColor} />
                                 </>
                             )}
@@ -237,6 +321,130 @@ export default function LawyerLoginScreen() {
                     Lawyer accounts remain pending until professional credentials are verified.
                 </Text>
             </View>
+
+            {/* Tap-to-Configure Server URL Footer */}
+            <TouchableOpacity
+                style={styles.serverPill}
+                activeOpacity={0.7}
+                onPress={() => {
+                    setInputUrl(apiUrl);
+                    setTestStatus({ status: 'idle', message: '' });
+                    setShowConfigModal(true);
+                }}
+            >
+                <Wifi size={12} color={JudiciaColors.goldPrimary} />
+                <Text style={styles.serverPillText} numberOfLines={1}>
+                    Server: {apiUrl}
+                </Text>
+                <Settings size={12} color={JudiciaColors.goldPrimary} />
+            </TouchableOpacity>
+
+            {/* Modal: Configure & Test Server Connection */}
+            <Modal
+                visible={showConfigModal}
+                animationType="slide"
+                transparent={true}
+                onRequestClose={() => setShowConfigModal(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.modalCard, { backgroundColor: isDark ? '#191B19' : '#FFFFFF' }]}>
+                        <View style={styles.modalHeader}>
+                            <Text style={[styles.modalTitle, { color: textPrimary }]}>Backend Server Setting</Text>
+                            <TouchableOpacity onPress={() => setShowConfigModal(false)}>
+                                <X size={20} color={textSecondary} />
+                            </TouchableOpacity>
+                        </View>
+
+                        <Text style={[styles.modalDesc, { color: textSecondary }]}>
+                            Enter your PC's IP address or public tunnel URL (port 3000):
+                        </Text>
+
+                        <TextInput
+                            style={[
+                                styles.modalInput,
+                                { backgroundColor: inputBg, borderColor: cardBorder, color: textPrimary },
+                            ]}
+                            value={inputUrl}
+                            onChangeText={setInputUrl}
+                            autoCapitalize="none"
+                            placeholder="http://172.20.10.2:3000/api"
+                            placeholderTextColor="#8A918B"
+                        />
+
+                        {/* Quick Presets */}
+                        <View style={styles.presetRow}>
+                            <TouchableOpacity
+                                style={styles.presetBtn}
+                                onPress={() => setInputUrl('http://172.20.10.2:3000/api')}
+                            >
+                                <Text style={styles.presetText}>Hotspot (172.20.10.2)</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={styles.presetBtn}
+                                onPress={() => setInputUrl('http://10.0.2.2:3000/api')}
+                            >
+                                <Text style={styles.presetText}>Android Emulator</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        {/* Test Connection Button */}
+                        <TouchableOpacity
+                            style={styles.testBtn}
+                            onPress={() => handleTestConnection()}
+                            disabled={testStatus.status === 'testing'}
+                        >
+                            {testStatus.status === 'testing' ? (
+                                <ActivityIndicator size="small" color={JudiciaColors.goldPrimary} />
+                            ) : (
+                                <Text style={styles.testBtnText}>⚡ Test Connection Now</Text>
+                            )}
+                        </TouchableOpacity>
+
+                        {/* Test Status Banner */}
+                        {testStatus.message.length > 0 && (
+                            <View
+                                style={[
+                                    styles.testResultBox,
+                                    {
+                                        backgroundColor:
+                                            testStatus.status === 'success'
+                                                ? 'rgba(22, 163, 74, 0.15)'
+                                                : testStatus.status === 'error'
+                                                ? 'rgba(220, 38, 38, 0.15)'
+                                                : 'rgba(201, 161, 90, 0.15)',
+                                    },
+                                ]}
+                            >
+                                <Text
+                                    style={[
+                                        styles.testResultText,
+                                        {
+                                            color:
+                                                testStatus.status === 'success'
+                                                    ? '#16A34A'
+                                                    : testStatus.status === 'error'
+                                                    ? '#DC2626'
+                                                    : JudiciaColors.goldPrimary,
+                                        },
+                                    ]}
+                                >
+                                    {testStatus.message}
+                                </Text>
+                            </View>
+                        )}
+
+                        {/* Action Buttons */}
+                        <View style={styles.modalActionRow}>
+                            <TouchableOpacity
+                                style={styles.saveBtn}
+                                onPress={() => handleSaveUrl(inputUrl)}
+                            >
+                                <Text style={styles.saveBtnText}>Save & Use This URL</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </SafeAreaView>
     );
 }
@@ -254,51 +462,56 @@ const styles = StyleSheet.create({
         paddingBottom: 8,
     },
     headerCircleBtn: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
+        width: 40,
+        height: 40,
+        borderRadius: 20,
         alignItems: 'center',
         justifyContent: 'center',
         borderWidth: 1,
     },
     scrollContent: {
         paddingHorizontal: 24,
-        paddingTop: 24,
-        paddingBottom: 40,
+        paddingTop: 16,
+        paddingBottom: 32,
     },
     titleSection: {
-        marginBottom: 28,
+        marginBottom: 24,
     },
     tagline: {
         fontSize: 10,
         fontWeight: '700',
         letterSpacing: 2,
         color: JudiciaColors.goldPrimary,
-        textTransform: 'uppercase',
         marginBottom: 8,
     },
     heading: {
-        fontSize: 32,
+        fontSize: 28,
         fontWeight: '700',
         marginBottom: 8,
     },
     subheading: {
         fontSize: 14,
+        lineHeight: 20,
     },
     errorBox: {
-        backgroundColor: 'rgba(220, 38, 38, 0.1)',
-        borderRadius: 8,
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        backgroundColor: 'rgba(220, 38, 38, 0.12)',
+        borderColor: 'rgba(220, 38, 38, 0.4)',
+        borderWidth: 1,
+        borderRadius: 10,
         padding: 12,
         marginBottom: 20,
-        borderWidth: 1,
-        borderColor: 'rgba(220, 38, 38, 0.3)',
     },
     errorText: {
-        color: '#DC2626',
+        flex: 1,
         fontSize: 13,
+        lineHeight: 18,
+        color: '#DC2626',
+        fontWeight: '500',
     },
     form: {
-        gap: 18,
+        gap: 16,
     },
     fieldGroup: {
         gap: 6,
@@ -308,32 +521,31 @@ const styles = StyleSheet.create({
         fontWeight: '600',
     },
     input: {
+        height: 50,
         borderRadius: 10,
-        paddingHorizontal: 14,
-        paddingVertical: 13,
-        fontSize: 15,
         borderWidth: 1,
+        paddingHorizontal: 16,
+        fontSize: 14,
     },
     passwordWrapper: {
         position: 'relative',
         justifyContent: 'center',
     },
     passwordInput: {
-        paddingRight: 45,
+        paddingRight: 48,
     },
     eyeBtn: {
         position: 'absolute',
-        right: 14,
-        padding: 6,
+        right: 16,
+        padding: 4,
     },
     optionsRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
         marginTop: 4,
-        marginBottom: 6,
     },
-    checkboxRow: {
+    rememberMe: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 8,
@@ -346,57 +558,166 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    checkboxActive: {
-        backgroundColor: JudiciaColors.goldPrimary,
-        borderColor: JudiciaColors.goldPrimary,
+    rememberText: {
+        fontSize: 13,
     },
-    checkboxLabel: {
-        fontSize: 12,
-    },
-    forgotPassword: {
-        fontSize: 12,
-        fontWeight: '600',
+    forgotText: {
+        fontSize: 13,
         color: JudiciaColors.goldPrimary,
+        fontWeight: '600',
     },
     signInBtn: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
         gap: 8,
-        paddingVertical: 16,
+        height: 52,
         borderRadius: 12,
-        marginTop: 8,
+        marginTop: 12,
     },
     signInBtnText: {
         fontSize: 15,
         fontWeight: '700',
+        letterSpacing: 0.5,
     },
     switchRow: {
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
-        marginTop: 12,
+        marginTop: 16,
     },
     switchText: {
         fontSize: 13,
     },
     createAccountLink: {
         fontSize: 13,
-        fontWeight: '700',
         color: JudiciaColors.goldPrimary,
+        fontWeight: '700',
     },
     securityFooter: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
         gap: 8,
-        paddingHorizontal: 30,
-        paddingBottom: 20,
+        paddingHorizontal: 24,
+        paddingBottom: 6,
     },
     securityText: {
         fontSize: 11,
-        lineHeight: 15,
         textAlign: 'center',
+        lineHeight: 16,
         flex: 1,
+    },
+    serverPill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        paddingVertical: 6,
+        paddingHorizontal: 16,
+        backgroundColor: 'rgba(201, 161, 90, 0.08)',
+        borderRadius: 20,
+        marginHorizontal: 20,
+        marginBottom: 8,
+        borderWidth: 1,
+        borderColor: 'rgba(201, 161, 90, 0.25)',
+    },
+    serverPillText: {
+        fontSize: 11,
+        color: JudiciaColors.goldPrimary,
+        fontWeight: '600',
+        maxWidth: '80%',
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.65)',
+        justifyContent: 'center',
+        padding: 20,
+    },
+    modalCard: {
+        borderRadius: 16,
+        padding: 22,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
+        gap: 14,
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    modalTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+    },
+    modalDesc: {
+        fontSize: 13,
+        lineHeight: 18,
+    },
+    modalInput: {
+        height: 46,
+        borderRadius: 8,
+        borderWidth: 1,
+        paddingHorizontal: 14,
+        fontSize: 13,
+        fontFamily: 'SpaceMono',
+    },
+    presetRow: {
+        flexDirection: 'row',
+        gap: 8,
+    },
+    presetBtn: {
+        paddingVertical: 6,
+        paddingHorizontal: 10,
+        borderRadius: 6,
+        backgroundColor: 'rgba(201, 161, 90, 0.12)',
+        borderWidth: 1,
+        borderColor: 'rgba(201, 161, 90, 0.3)',
+    },
+    presetText: {
+        fontSize: 11,
+        color: JudiciaColors.goldPrimary,
+        fontWeight: '600',
+    },
+    testBtn: {
+        height: 42,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: JudiciaColors.goldPrimary,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(201, 161, 90, 0.1)',
+    },
+    testBtnText: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: JudiciaColors.goldPrimary,
+    },
+    testResultBox: {
+        padding: 10,
+        borderRadius: 8,
+    },
+    testResultText: {
+        fontSize: 12,
+        fontWeight: '600',
+        lineHeight: 16,
+    },
+    modalActionRow: {
+        flexDirection: 'row',
+        gap: 10,
+        marginTop: 6,
+    },
+    saveBtn: {
+        flex: 1,
+        height: 46,
+        borderRadius: 10,
+        backgroundColor: JudiciaColors.goldPrimary,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    saveBtnText: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#101110',
     },
 });
