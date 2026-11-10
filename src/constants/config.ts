@@ -44,10 +44,12 @@ export const getDynamicApiUrl = (): string => {
         }
     }
 
-    // 3. iPhone Personal Hotspot default (PC's Wi-Fi IP on iPhone hotspot)
-    if (Platform.OS === 'ios' || Platform.OS === 'android') {
-        return 'http://172.20.10.2:3000/api';
+    // 3. Fallback for physical devices / emulators
+    if (Platform.OS === 'android') {
+        return 'http://10.0.2.2:3000/api';
     }
+
+    return 'http://localhost:3000/api';
 
     return 'http://localhost:3000/api';
 };
