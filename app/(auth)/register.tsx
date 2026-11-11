@@ -11,23 +11,28 @@ import {
     Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { JudiciaLogo } from '@/components/common/JudiciaLogo';
 import { JudiciaColors } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
-import { ArrowLeft, ArrowRight, Eye, EyeOff, Lock, Sun, Moon } from 'lucide-react-native';
+import { ArrowLeft, ArrowRight, Eye, EyeOff, Lock, Sun, Moon, AlertCircle } from 'lucide-react-native';
 
-export default function LawyerRegisterScreen() {
+export default function RegisterScreen() {
     const router = useRouter();
-    const { register } = useAuth();
+    const params = useLocalSearchParams<{ role?: string }>();
+    const { register, selectedPortalRole } = useAuth();
     const { isDark, toggleTheme } = useTheme();
+
+    const isClient = (params.role || selectedPortalRole) === 'client';
 
     const [fullName, setFullName] = useState('');
     const [email, setEmail] = useState('');
+    const [phone, setPhone] = useState('');
     const [firmName, setFirmName] = useState('');
     const [barNumber, setBarNumber] = useState('');
+    const [referralCode, setReferralCode] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
@@ -35,7 +40,7 @@ export default function LawyerRegisterScreen() {
 
     const handleRegister = async () => {
         if (!fullName.trim()) {
-            setErrorMessage('Please enter your full legal name.');
+            setErrorMessage('Please enter your full name.');
             return;
         }
         if (!email.trim() || !email.includes('@')) {
@@ -43,7 +48,7 @@ export default function LawyerRegisterScreen() {
             return;
         }
         if (password.length < 8) {
-            setErrorMessage('Password must be at least 8 characters with letters and numbers.');
+            setErrorMessage('Password must be at least 8 characters long with uppercase, lowercase, and numbers.');
             return;
         }
 
@@ -51,16 +56,20 @@ export default function LawyerRegisterScreen() {
         setIsLoading(true);
 
         try {
-            // Connects to Next.js POST /api/auth/register
+            // Connects to Next.js POST /api/auth/register and inserts into PostgreSQL
             await register({
-                role: 'lawyer',
+                role: isClient ? 'client' : 'lawyer',
                 fullName: fullName.trim(),
                 email: email.trim(),
                 password,
-                firmName: firmName.trim() || 'Independent Practice',
-                barNumber: barNumber.trim(),
+                phone: phone.trim() || undefined,
+                firmName: isClient ? undefined : (firmName.trim() || 'Independent Practice'),
+                barNumber: isClient ? undefined : barNumber.trim(),
+                referralCode: isClient ? referralCode.trim() : undefined,
             });
-            // On success, AuthContext automatically routes to /(lawyer)
+            // On success, AuthContext automatically routes:
+            // - CLIENT -> /(client)
+            // - LAWYER -> /(lawyer)
         } catch (error: any) {
             setErrorMessage(error.message || 'Registration failed. Please check your details.');
         } finally {
@@ -115,16 +124,21 @@ export default function LawyerRegisterScreen() {
                 <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
                     {/* Headline */}
                     <View style={styles.titleSection}>
-                        <Text style={styles.tagline}>LAWYER REGISTRATION</Text>
+                        <Text style={styles.tagline}>
+                            {isClient ? 'CLIENT REGISTRATION' : 'LAWYER REGISTRATION'}
+                        </Text>
                         <Text style={[styles.heading, { color: textPrimary }]}>Create account</Text>
                         <Text style={[styles.subheading, { color: textSecondary }]}>
-                            Join Sri Lanka's digital legal community.
+                            {isClient
+                                ? 'Create an account to track your ongoing court matters.'
+                                : "Join Sri Lanka's digital legal community."}
                         </Text>
                     </View>
 
                     {/* Error Box */}
                     {errorMessage && (
                         <View style={styles.errorBox}>
+                            <AlertCircle size={16} color="#DC2626" style={{ marginTop: 2, marginRight: 8 }} />
                             <Text style={styles.errorText}>{errorMessage}</Text>
                         </View>
                     )}
@@ -136,7 +150,7 @@ export default function LawyerRegisterScreen() {
                             <Text style={[styles.label, { color: textPrimary }]}>Full Name</Text>
                             <TextInput
                                 style={[styles.input, { backgroundColor: inputBg, borderColor: cardBorder, color: textPrimary }]}
-                                placeholder="Adv. Kamal Perera"
+                                placeholder={isClient ? 'Nimali Jayawardena' : 'Adv. Kamal Perera'}
                                 placeholderTextColor={isDark ? '#6E736E' : '#A3A8A3'}
                                 value={fullName}
                                 onChangeText={setFullName}
@@ -148,7 +162,7 @@ export default function LawyerRegisterScreen() {
                             <Text style={[styles.label, { color: textPrimary }]}>Email address</Text>
                             <TextInput
                                 style={[styles.input, { backgroundColor: inputBg, borderColor: cardBorder, color: textPrimary }]}
-                                placeholder="counsel@example.com"
+                                placeholder={isClient ? 'nimali@example.com' : 'counsel@example.com'}
                                 placeholderTextColor={isDark ? '#6E736E' : '#A3A8A3'}
                                 autoCapitalize="none"
                                 keyboardType="email-address"
@@ -158,29 +172,59 @@ export default function LawyerRegisterScreen() {
                             />
                         </View>
 
-                        {/* Chambers / Firm Name */}
+                        {/* Phone */}
                         <View style={styles.fieldGroup}>
-                            <Text style={[styles.label, { color: textPrimary }]}>Chambers / Firm Name (Optional)</Text>
+                            <Text style={[styles.label, { color: textPrimary }]}>Phone Number (Optional)</Text>
                             <TextInput
                                 style={[styles.input, { backgroundColor: inputBg, borderColor: cardBorder, color: textPrimary }]}
-                                placeholder="e.g. Perera & Associates Law Chambers"
+                                placeholder="077 123 4567"
                                 placeholderTextColor={isDark ? '#6E736E' : '#A3A8A3'}
-                                value={firmName}
-                                onChangeText={setFirmName}
+                                keyboardType="phone-pad"
+                                value={phone}
+                                onChangeText={setPhone}
                             />
                         </View>
 
-                        {/* BASL Bar Registration Number */}
-                        <View style={styles.fieldGroup}>
-                            <Text style={[styles.label, { color: textPrimary }]}>BASL Bar Number (Optional)</Text>
-                            <TextInput
-                                style={[styles.input, { backgroundColor: inputBg, borderColor: cardBorder, color: textPrimary }]}
-                                placeholder="e.g. BASL/2022/491"
-                                placeholderTextColor={isDark ? '#6E736E' : '#A3A8A3'}
-                                value={barNumber}
-                                onChangeText={setBarNumber}
-                            />
-                        </View>
+                        {/* Client-specific: Case Number or Referral */}
+                        {isClient && (
+                            <View style={styles.fieldGroup}>
+                                <Text style={[styles.label, { color: textPrimary }]}>Case Number or Law Firm (Optional)</Text>
+                                <TextInput
+                                    style={[styles.input, { backgroundColor: inputBg, borderColor: cardBorder, color: textPrimary }]}
+                                    placeholder="e.g. DSP/0142/24 or Perera Chambers"
+                                    placeholderTextColor={isDark ? '#6E736E' : '#A3A8A3'}
+                                    value={referralCode}
+                                    onChangeText={setReferralCode}
+                                />
+                            </View>
+                        )}
+
+                        {/* Lawyer-specific fields */}
+                        {!isClient && (
+                            <>
+                                <View style={styles.fieldGroup}>
+                                    <Text style={[styles.label, { color: textPrimary }]}>Chambers / Firm Name (Optional)</Text>
+                                    <TextInput
+                                        style={[styles.input, { backgroundColor: inputBg, borderColor: cardBorder, color: textPrimary }]}
+                                        placeholder="e.g. Perera & Associates Law Chambers"
+                                        placeholderTextColor={isDark ? '#6E736E' : '#A3A8A3'}
+                                        value={firmName}
+                                        onChangeText={setFirmName}
+                                    />
+                                </View>
+
+                                <View style={styles.fieldGroup}>
+                                    <Text style={[styles.label, { color: textPrimary }]}>BASL Bar Number (Optional)</Text>
+                                    <TextInput
+                                        style={[styles.input, { backgroundColor: inputBg, borderColor: cardBorder, color: textPrimary }]}
+                                        placeholder="e.g. BASL/2022/491"
+                                        placeholderTextColor={isDark ? '#6E736E' : '#A3A8A3'}
+                                        value={barNumber}
+                                        onChangeText={setBarNumber}
+                                    />
+                                </View>
+                            </>
+                        )}
 
                         {/* Password */}
                         <View style={styles.fieldGroup}>
@@ -227,7 +271,9 @@ export default function LawyerRegisterScreen() {
                                 <ActivityIndicator color={buttonTextColor} />
                             ) : (
                                 <>
-                                    <Text style={[styles.registerBtnText, { color: buttonTextColor }]}>Register as Lawyer</Text>
+                                    <Text style={[styles.registerBtnText, { color: buttonTextColor }]}>
+                                        {isClient ? 'Register as Client' : 'Register as Lawyer'}
+                                    </Text>
                                     <ArrowRight size={18} color={buttonTextColor} />
                                 </>
                             )}
@@ -248,7 +294,9 @@ export default function LawyerRegisterScreen() {
             <View style={styles.securityFooter}>
                 <Lock size={14} color={isDark ? '#8A908A' : '#737873'} />
                 <Text style={[styles.securityText, { color: isDark ? '#8A908A' : '#737873' }]}>
-                    Credentials are securely encrypted and verified with the Bar Association.
+                    {isClient
+                        ? 'Your personal data and legal records are encrypted and protected.'
+                        : 'Credentials are securely encrypted and verified with the Bar Association.'}
                 </Text>
             </View>
         </SafeAreaView>
@@ -306,10 +354,13 @@ const styles = StyleSheet.create({
         marginBottom: 20,
         borderWidth: 1,
         borderColor: 'rgba(220, 38, 38, 0.3)',
+        flexDirection: 'row',
+        alignItems: 'center',
     },
     errorText: {
         color: '#DC2626',
         fontSize: 13,
+        flex: 1,
     },
     form: {
         gap: 16,

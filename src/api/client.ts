@@ -11,16 +11,20 @@ export const apiClient = axios.create({
     },
 });
 
-// Interceptor: Automatically attaches Bearer token from secure storage
+// Interceptor: Dynamically check custom API URL and attach Bearer token
 apiClient.interceptors.request.use(
     async (config) => {
         try {
+            const customUrl = await SecureStore.getItemAsync(STORAGE_KEYS.CUSTOM_API_URL);
+            if (customUrl && customUrl.trim().length > 0) {
+                config.baseURL = customUrl.trim();
+            }
             const token = await SecureStore.getItemAsync(STORAGE_KEYS.AUTH_TOKEN);
             if (token && config.headers) {
                 config.headers.Authorization = `Bearer ${token}`;
             }
         } catch (error) {
-            console.warn('Failed to retrieve auth token:', error);
+            console.warn('Failed in request interceptor:', error);
         }
         return config;
     },
@@ -31,16 +35,28 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
     (response) => response,
     (error) => {
-        if (__DEV__ && (!error.response || error.code === 'ERR_NETWORK')) {
+        const activeUrl = error.config?.baseURL || API_BASE_URL;
+        const isTimeout = error.code === 'ECONNABORTED' || error.message?.includes('timeout');
+        const isNetworkErr = !error.response || error.code === 'ERR_NETWORK' || isTimeout;
+
+        if (__DEV__ && isNetworkErr) {
             console.warn(
-                `[API Network Error] Could not reach ${API_BASE_URL}. Check that Next.js backend is running on your PC ('npm run dev') and your phone is on the same Wi-Fi.`
+                `[API Network Error] Could not reach ${activeUrl}. (${error.message})`
             );
         }
-        const message =
+
+        let message =
             error.response?.data?.error ||
             error.response?.data?.message ||
             error.message ||
             'Network request failed';
+
+        if (isTimeout) {
+            message = `Connection timed out (15s). Could not connect to ${activeUrl}.\nPlease verify your PC backend is running ('npm run dev') and reachable.`;
+        } else if (!error.response) {
+            message = `Cannot reach backend at ${activeUrl}.\nEnsure Next.js is running and port 3000 is accessible.`;
+        }
+
         return Promise.reject(new Error(message));
     }
 );

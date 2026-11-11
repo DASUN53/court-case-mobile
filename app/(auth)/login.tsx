@@ -11,7 +11,7 @@ import {
     Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { JudiciaLogo } from '@/components/common/JudiciaLogo';
 import { JudiciaColors } from '@/constants/theme';
@@ -26,12 +26,17 @@ import {
     Check,
     Sun,
     Moon,
+    AlertCircle,
 } from 'lucide-react-native';
 
-export default function LawyerLoginScreen() {
+export default function LoginScreen() {
     const router = useRouter();
-    const { login } = useAuth();
+    const params = useLocalSearchParams<{ role?: string }>();
+    const { login, selectedPortalRole } = useAuth();
     const { isDark, toggleTheme } = useTheme();
+
+    // Determine if this is Client Access or Lawyer Access
+    const isClient = (params.role || selectedPortalRole) === 'client';
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -50,12 +55,14 @@ export default function LawyerLoginScreen() {
         setIsLoading(true);
 
         try {
-            // Connects to Next.js POST /api/auth/login and verifies with PostgreSQL
+            // Connects to Next.js POST /api/auth/login and queries PostgreSQL
             await login({
                 email: email.trim(),
                 password,
             });
-            // On success, AuthContext automatically routes the lawyer to /(lawyer)
+            // AuthContext automatically routes:
+            // - CLIENT -> /(client)
+            // - LAWYER -> /(lawyer)
         } catch (error: any) {
             setErrorMessage(error.message || 'Invalid email or password.');
         } finally {
@@ -110,16 +117,21 @@ export default function LawyerLoginScreen() {
                 <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
                     {/* Headline Section */}
                     <View style={styles.titleSection}>
-                        <Text style={styles.tagline}>LAWYER ACCESS</Text>
+                        <Text style={styles.tagline}>
+                            {isClient ? 'CLIENT ACCESS' : 'LAWYER ACCESS'}
+                        </Text>
                         <Text style={[styles.heading, { color: textPrimary }]}>Welcome back</Text>
                         <Text style={[styles.subheading, { color: textSecondary }]}>
-                            Sign in to your practice workspace.
+                            {isClient
+                                ? 'Sign in to your secure case portal.'
+                                : 'Sign in to your practice workspace.'}
                         </Text>
                     </View>
 
                     {/* Error Banner */}
                     {errorMessage && (
                         <View style={styles.errorBox}>
+                            <AlertCircle size={16} color="#DC2626" style={{ marginTop: 2, marginRight: 8 }} />
                             <Text style={styles.errorText}>{errorMessage}</Text>
                         </View>
                     )}
@@ -134,7 +146,7 @@ export default function LawyerLoginScreen() {
                                     styles.input,
                                     { backgroundColor: inputBg, borderColor: cardBorder, color: textPrimary },
                                 ]}
-                                placeholder="name@example.com"
+                                placeholder={isClient ? 'name@example.com' : 'counsel@example.com'}
                                 placeholderTextColor={isDark ? '#6E736E' : '#A3A8A3'}
                                 autoCapitalize="none"
                                 keyboardType="email-address"
@@ -221,7 +233,12 @@ export default function LawyerLoginScreen() {
                             <Text style={[styles.switchText, { color: textSecondary }]}>New to Judicia? </Text>
                             <TouchableOpacity
                                 activeOpacity={0.7}
-                                onPress={() => router.push('/(auth)/register' as any)}
+                                onPress={() =>
+                                    router.push({
+                                        pathname: '/(auth)/register' as any,
+                                        params: { role: isClient ? 'client' : 'lawyer' },
+                                    })
+                                }
                             >
                                 <Text style={styles.createAccountLink}>Create an account</Text>
                             </TouchableOpacity>
@@ -234,7 +251,9 @@ export default function LawyerLoginScreen() {
             <View style={styles.securityFooter}>
                 <Lock size={14} color={isDark ? '#8A908A' : '#737873'} />
                 <Text style={[styles.securityText, { color: isDark ? '#8A908A' : '#737873' }]}>
-                    Lawyer accounts remain pending until professional credentials are verified.
+                    {isClient
+                        ? 'You will only see information and documents explicitly shared with you.'
+                        : 'Lawyer accounts remain pending until professional credentials are verified.'}
                 </Text>
             </View>
         </SafeAreaView>
@@ -292,10 +311,13 @@ const styles = StyleSheet.create({
         marginBottom: 20,
         borderWidth: 1,
         borderColor: 'rgba(220, 38, 38, 0.3)',
+        flexDirection: 'row',
+        alignItems: 'center',
     },
     errorText: {
         color: '#DC2626',
         fontSize: 13,
+        flex: 1,
     },
     form: {
         gap: 18,
